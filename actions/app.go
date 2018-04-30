@@ -4,6 +4,7 @@ import (
 	"github.com/gobuffalo/buffalo"
 	"github.com/gobuffalo/buffalo/middleware"
 	"github.com/gobuffalo/buffalo/middleware/ssl"
+	"github.com/gobuffalo/buffalo/middleware/tokenauth"
 	"github.com/gobuffalo/envy"
 	"github.com/unrolled/secure"
 
@@ -21,6 +22,7 @@ var app *buffalo.App
 // application.
 func App() *buffalo.App {
 	if app == nil {
+		tokenAuth := tokenauth.New(tokenauth.Options{})
 		app = buffalo.New(buffalo.Options{
 			Env:          ENV,
 			SessionStore: sessions.Null{},
@@ -37,13 +39,19 @@ func App() *buffalo.App {
 
 		// Set the request content type to JSON
 		app.Use(middleware.SetContentType("application/json"))
+		app.Use(tokenAuth)
 
 		if ENV == "development" {
 			app.Use(middleware.ParameterLogger)
 		}
 
-		app.GET("/", HomeHandler)
+		app.Middleware.Skip(tokenAuth, AuthCallback)
 
+		r := app.Group("/v1")
+		r.GET("/", HomeHandler)
+
+		auth := r.Group("/auth")
+		auth.GET("/telegram/callback", AuthCallback)
 	}
 
 	return app
